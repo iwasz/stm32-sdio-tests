@@ -1,13 +1,252 @@
 #include <stm32f4xx.h>
 #include <stdio.h>
+#if 0
+#include "sdio_high_level.h"
 
-#include <usb_core.h> // OTG driver
-#include <usbd_core.h> // Device library
-#include <usbd_usr.h> // USBD_Usr_cb_TypeDef structure implementaion
-#include "usbd_vendor_class.h"// Class library
-#include "usbd_desc.h"
+/* Private typedef -----------------------------------------------------------*/
+typedef enum {
+        FAILED = 0, PASSED = !FAILED
+} TestStatus;
 
-__ALIGN_BEGIN USB_OTG_CORE_HANDLE  USB_OTG_dev __ALIGN_END;
+/* Private define ------------------------------------------------------------*/
+#define BLOCK_SIZE            512 /* Block Size in Bytes */
+
+#define NUMBER_OF_BLOCKS      100  /* For Multi Blocks operation (Read/Write) */
+#define MULTI_BUFFER_SIZE    (BLOCK_SIZE * NUMBER_OF_BLOCKS)
+
+#define SD_OPERATION_ERASE          0
+#define SD_OPERATION_BLOCK          1
+#define SD_OPERATION_MULTI_BLOCK    2
+#define SD_OPERATION_END            3
+
+/* Private macro -------------------------------------------------------------*/
+/* Private variables ---------------------------------------------------------*/
+uint8_t aBuffer_Block_Tx[BLOCK_SIZE];
+uint8_t aBuffer_Block_Rx[BLOCK_SIZE];
+uint8_t aBuffer_MultiBlock_Tx[MULTI_BUFFER_SIZE];
+uint8_t aBuffer_MultiBlock_Rx[MULTI_BUFFER_SIZE];
+__IO TestStatus EraseStatus = FAILED;
+__IO TestStatus TransferStatus1 = FAILED;
+__IO TestStatus TransferStatus2 = FAILED;
+
+SD_Error Status = SD_OK;
+__IO uint32_t uwSDCardOperation = SD_OPERATION_ERASE;
+
+/* Private function prototypes -----------------------------------------------*/
+static void NVIC_Configuration (void);
+static void SD_EraseTest (void);
+static void SD_SingleBlockTest (void);
+static void SD_MultiBlockTest (void);
+static void Fill_Buffer (uint8_t *pBuffer, uint32_t BufferLength, uint32_t Offset);
+
+static TestStatus Buffercmp (uint8_t* pBuffer1, uint8_t* pBuffer2, uint32_t BufferLength);
+static TestStatus eBuffercmp (uint8_t* pBuffer, uint32_t BufferLength);
+
+/* Private functions ---------------------------------------------------------*/
+
+/**
+ * @brief  Configures SDIO IRQ channel.
+ * @param  None
+ * @retval None
+ */
+static void NVIC_Configuration (void)
+{
+        NVIC_InitTypeDef NVIC_InitStructure;
+
+        /* Configure the NVIC Preemption Priority Bits */
+        NVIC_PriorityGroupConfig (NVIC_PriorityGroup_1);
+
+        NVIC_InitStructure.NVIC_IRQChannel = SDIO_IRQn;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 0;
+        NVIC_InitStructure.NVIC_IRQChannelSubPriority = 0;
+        NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+        NVIC_Init (&NVIC_InitStructure);
+        NVIC_InitStructure.NVIC_IRQChannel = SD_SDIO_DMA_IRQn;
+        NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
+        NVIC_Init (&NVIC_InitStructure);
+}
+
+/**
+ * @brief  Tests the SD card erase operation.
+ * @param  None
+ * @retval None
+ */
+static void SD_EraseTest (void)
+{
+        /*------------------- Block Erase ------------------------------------------*/
+        if (Status == SD_OK) {
+                /* Erase NumberOfBlocks Blocks of WRITE_BL_LEN(512 Bytes) */
+                Status = SD_Erase (0x00, (BLOCK_SIZE * NUMBER_OF_BLOCKS));
+        }
+
+        if (Status == SD_OK) {
+                Status = SD_ReadMultiBlocks (aBuffer_MultiBlock_Rx, 0x00, BLOCK_SIZE, NUMBER_OF_BLOCKS);
+
+                /* Check if the Transfer is finished */
+                Status = SD_WaitReadOperation ();
+
+                /* Wait until end of DMA transfer */
+                while (SD_GetStatus () != SD_TRANSFER_OK)
+                        ;
+        }
+
+        /* Check the correctness of erased blocks */
+        if (Status == SD_OK) {
+                EraseStatus = eBuffercmp (aBuffer_MultiBlock_Rx, MULTI_BUFFER_SIZE);
+        }
+
+        if (EraseStatus == PASSED) {
+                printf ("SD erase test passed\r\n");
+        }
+        else {
+                printf ("SD erase test failed\r\n");
+        }
+}
+
+/**
+ * @brief  Tests the SD card Single Blocks operations.
+ * @param  None
+ * @retval None
+ */
+static void SD_SingleBlockTest (void)
+{
+        /*------------------- Block Read/Write --------------------------*/
+        /* Fill the buffer to send */
+        Fill_Buffer (aBuffer_Block_Tx, BLOCK_SIZE, 0x320F);
+
+        if (Status == SD_OK) {
+                /* Write block of 512 bytes on address 0 */
+                Status = SD_WriteBlock (aBuffer_Block_Tx, 0x00, BLOCK_SIZE);
+                /* Check if the Transfer is finished */
+                Status = SD_WaitWriteOperation ();
+                while (SD_GetStatus () != SD_TRANSFER_OK)
+                        ;
+        }
+
+        if (Status == SD_OK) {
+                /* Read block of 512 bytes from address 0 */
+                Status = SD_ReadBlock (aBuffer_Block_Rx, 0x00, BLOCK_SIZE);
+                /* Check if the Transfer is finished */
+                Status = SD_WaitReadOperation ();
+                while (SD_GetStatus () != SD_TRANSFER_OK)
+                        ;
+        }
+
+        /* Check the correctness of written data */
+        if (Status == SD_OK) {
+                TransferStatus1 = Buffercmp (aBuffer_Block_Tx, aBuffer_Block_Rx, BLOCK_SIZE);
+        }
+
+        if (TransferStatus1 == PASSED) {
+                printf ("Single block test passed\r\n");
+        }
+        else {
+                printf ("Single block test failed\r\n");
+        }
+}
+
+/**
+ * @brief  Tests the SD card Multiple Blocks operations.
+ * @param  None
+ * @retval None
+ */
+static void SD_MultiBlockTest (void)
+{
+        /* Fill the buffer to send */
+        Fill_Buffer (aBuffer_MultiBlock_Tx, MULTI_BUFFER_SIZE, 0x0);
+
+        if (Status == SD_OK) {
+                /* Write multiple block of many bytes on address 0 */
+                Status = SD_WriteMultiBlocks (aBuffer_MultiBlock_Tx, 0, BLOCK_SIZE, NUMBER_OF_BLOCKS);
+
+                /* Check if the Transfer is finished */
+                Status = SD_WaitWriteOperation ();
+                while (SD_GetStatus () != SD_TRANSFER_OK)
+                        ;
+        }
+
+        if (Status == SD_OK) {
+                /* Read block of many bytes from address 0 */
+                Status = SD_ReadMultiBlocks (aBuffer_MultiBlock_Rx, 0, BLOCK_SIZE, NUMBER_OF_BLOCKS);
+
+                /* Check if the Transfer is finished */
+                Status = SD_WaitReadOperation ();
+                while (SD_GetStatus () != SD_TRANSFER_OK)
+                        ;
+        }
+
+        /* Check the correctness of written data */
+        if (Status == SD_OK) {
+                TransferStatus2 = Buffercmp (aBuffer_MultiBlock_Tx, aBuffer_MultiBlock_Rx, MULTI_BUFFER_SIZE);
+        }
+
+        if (TransferStatus2 == PASSED) {
+                printf ("Multiple block test passed\r\n");
+        }
+        else {
+                printf ("Multiple block test failed\r\n");
+        }
+}
+
+/**
+ * @brief  Compares two buffers.
+ * @param  pBuffer1, pBuffer2: buffers to be compared.
+ * @param  BufferLength: buffer's length
+ * @retval PASSED: pBuffer1 identical to pBuffer2
+ *         FAILED: pBuffer1 differs from pBuffer2
+ */
+static TestStatus Buffercmp (uint8_t* pBuffer1, uint8_t* pBuffer2, uint32_t BufferLength)
+{
+        while (BufferLength--) {
+                if (*pBuffer1 != *pBuffer2) {
+                        return FAILED;
+                }
+
+                pBuffer1++;
+                pBuffer2++;
+        }
+
+        return PASSED;
+}
+
+/**
+ * @brief  Fills buffer with user predefined data.
+ * @param  pBuffer: pointer on the Buffer to fill
+ * @param  BufferLength: size of the buffer to fill
+ * @param  Offset: first value to fill on the Buffer
+ * @retval None
+ */
+static void Fill_Buffer (uint8_t *pBuffer, uint32_t BufferLength, uint32_t Offset)
+{
+        uint16_t index = 0;
+
+        /* Put in global buffer same values */
+        for (index = 0; index < BufferLength; index++) {
+                pBuffer[index] = index + Offset;
+        }
+}
+
+/**
+ * @brief  Checks if a buffer has all its values are equal to zero.
+ * @param  pBuffer: buffer to be compared.
+ * @param  BufferLength: buffer's length
+ * @retval PASSED: pBuffer values are zero
+ *         FAILED: At least one value from pBuffer buffer is different from zero.
+ */
+static TestStatus eBuffercmp (uint8_t* pBuffer, uint32_t BufferLength)
+{
+        while (BufferLength--) {
+                /* In some SD Cards the erased state is 0xFF, in others it's 0x00 */
+                if ((*pBuffer != 0xFF) && (*pBuffer != 0x00)) {
+                        return FAILED;
+                }
+
+                pBuffer++;
+        }
+
+        return PASSED;
+}
+#endif
 
 /**
  * For printf.
@@ -15,7 +254,7 @@ __ALIGN_BEGIN USB_OTG_CORE_HANDLE  USB_OTG_dev __ALIGN_END;
 void initUsart (void)
 {
         RCC_APB2PeriphClockCmd (RCC_APB2Periph_USART1, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
+        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOB, ENABLE);
 
         GPIO_InitTypeDef gpioInitStruct;
 
@@ -24,7 +263,7 @@ void initUsart (void)
         gpioInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
         gpioInitStruct.GPIO_OType = GPIO_OType_PP;
         gpioInitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL;
-        GPIO_Init(GPIOB, &gpioInitStruct);
+        GPIO_Init (GPIOB, &gpioInitStruct);
         GPIO_PinAFConfig (GPIOB, GPIO_PinSource6, GPIO_AF_USART1); // TX
         GPIO_PinAFConfig (GPIOB, GPIO_PinSource7, GPIO_AF_USART1); // RX
 
@@ -39,88 +278,53 @@ void initUsart (void)
         USART_Cmd (USART1, ENABLE);
 }
 
-void initExti (void)
-{
-        // Konfiguracja portu jak zwykle.
-        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOC, ENABLE);
-        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOD, ENABLE);
-        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOE, ENABLE);
-        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOF, ENABLE);
-        GPIO_InitTypeDef gpioInitStruct;
-        gpioInitStruct.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_2 | GPIO_Pin_3 | GPIO_Pin_4 | GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7 |
-                                  GPIO_Pin_8 | GPIO_Pin_9 | GPIO_Pin_10 | GPIO_Pin_11 | GPIO_Pin_12 | GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15;
-        gpioInitStruct.GPIO_Mode = GPIO_Mode_IN;
-        gpioInitStruct.GPIO_Speed = GPIO_Speed_100MHz;
-        gpioInitStruct.GPIO_PuPd = GPIO_PuPd_UP;
-        GPIO_Init (GPIOC, &gpioInitStruct);
-        GPIO_Init (GPIOD, &gpioInitStruct);
-        GPIO_Init (GPIOE, &gpioInitStruct);
-        GPIO_Init (GPIOF, &gpioInitStruct);
-
-#if 0
-        /*
-         * Podłaczenie pinu portu i linii EXTI.  EXTI_PinSource1 oznacza, pin1 (portu E) podłączony
-         * będzie do linii 1.
-         */
-        SYSCFG_EXTILineConfig (EXTI_PortSourceGPIOD, EXTI_PinSource0);
-        SYSCFG_EXTILineConfig (EXTI_PortSourceGPIOD, EXTI_PinSource1);
-
-        // Konfiguracja linii 1 EXTI.
-        EXTI_InitTypeDef extiInitStructure;
-        extiInitStructure.EXTI_Line = EXTI_Line0;
-        extiInitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-        extiInitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
-        extiInitStructure.EXTI_LineCmd = ENABLE;
-        EXTI_Init(&extiInitStructure);
-
-        extiInitStructure.EXTI_Line = EXTI_Line1;
-        extiInitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
-        extiInitStructure.EXTI_Trigger = EXTI_Trigger_Rising_Falling;
-        extiInitStructure.EXTI_LineCmd = ENABLE;
-        EXTI_Init(&extiInitStructure);
-
-        // Konfiguracja NVIC. Grupa jest ustawiona w pliku usb_bsp.c na 1
-        // NVIC_PriorityGroupConfig (NVIC_PriorityGroup_0);
-#endif
-        NVIC_InitTypeDef nvicInitStructure;
-//        nvicInitStructure.NVIC_IRQChannel = EXTI0_IRQn;
-//        nvicInitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-//        nvicInitStructure.NVIC_IRQChannelSubPriority = 0;
-//        nvicInitStructure.NVIC_IRQChannelCmd = ENABLE;
-//        NVIC_Init (&nvicInitStructure);
-//
-//        nvicInitStructure.NVIC_IRQChannel = EXTI1_IRQn;
-//        nvicInitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-//        nvicInitStructure.NVIC_IRQChannelSubPriority = 0;
-//        nvicInitStructure.NVIC_IRQChannelCmd = ENABLE;
-//        NVIC_Init (&nvicInitStructure);
-
-        // SysTick ma mniejszy priorytet niż GPIO.
-        nvicInitStructure.NVIC_IRQChannel = SysTick_IRQn;
-        nvicInitStructure.NVIC_IRQChannelPreemptionPriority = 0;
-        nvicInitStructure.NVIC_IRQChannelSubPriority = 0;
-        nvicInitStructure.NVIC_IRQChannelCmd = ENABLE;
-        NVIC_Init (&nvicInitStructure);
-}
-
-/**
- * Configure the USB OTG engine.
- */
-void initUsb (void)
-{
-        USBD_Init(&USB_OTG_dev,
-                  USB_OTG_FS_CORE_ID,
-                  &USR_desc,
-                  &USBDVendorClass,
-                  &USR_cb);
-}
-
 int main (void)
 {
         initUsart ();
-        initUsb ();
-        initExti ();
+        printf ("Init\r\n");
 
+//        /*!< At this stage the microcontroller clock setting is already configured,
+//         this is done through SystemInit() function which is called from startup
+//         files (startup_stm32f40_41xxx.s/startup_stm32f427_437xx.s)
+//         before to branch to application main. To reconfigure the default setting
+//         of SystemInit() function, refer to system_stm32f4xx.c file
+//         */
+//
+//        /* NVIC Configuration */
+//        NVIC_Configuration ();
+//
+//        /*------------------------------ SD Init ---------------------------------- */
+//        if ((Status = SD_Init ()) != SD_OK) {
+//                printf ("SD_Init went OK\r\n");
+//        }
+//
+//        while ((Status == SD_OK) && (uwSDCardOperation != SD_OPERATION_END) && (SD_Detect () == SD_PRESENT)) {
+//                switch (uwSDCardOperation) {
+//                /*-------------------------- SD Erase Test ---------------------------- */
+//                case (SD_OPERATION_ERASE):
+//                {
+//                        SD_EraseTest ();
+//                        uwSDCardOperation = SD_OPERATION_BLOCK;
+//                        break;
+//                }
+//                        /*-------------------------- SD Single Block Test --------------------- */
+//                case (SD_OPERATION_BLOCK):
+//                {
+//                        SD_SingleBlockTest ();
+//                        uwSDCardOperation = SD_OPERATION_MULTI_BLOCK;
+//                        break;
+//                }
+//                        /*-------------------------- SD Multi Blocks Test --------------------- */
+//                case (SD_OPERATION_MULTI_BLOCK):
+//                {
+//                        SD_MultiBlockTest ();
+//                        uwSDCardOperation = SD_OPERATION_END;
+//                        break;
+//                }
+//                }
+//        }
+
+        /* Infinite loop */
         while (1) {
         }
 }

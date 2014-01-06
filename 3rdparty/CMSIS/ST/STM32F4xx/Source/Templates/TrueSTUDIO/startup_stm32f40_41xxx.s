@@ -1,16 +1,16 @@
 /**
   ******************************************************************************
-  * @file      startup_stm32f427x.s
+  * @file      startup_stm32f40_41xxx.s
   * @author    MCD Application Team
-  * @version   V1.1.0
-  * @date      11-January-2013
-  * @brief     STM32F427x/437x Devices vector table for Atollic TrueSTUDIO toolchain.   
+  * @version   V1.3.0
+  * @date      08-November-2013
+  * @brief     STM32F40xxx/41xxx Devices vector table for Atollic TrueSTUDIO toolchain.   
   *            This module performs:
   *                - Set the initial SP
   *                - Set the initial PC == Reset_Handler,
   *                - Set the vector table entries with the exceptions ISR address
   *                - Configure the clock system and the external SRAM mounted on 
-  *                  STM324x7I-EVAL board to be used as data memory (optional, 
+  *                  STM324xG-EVAL board to be used as data memory (optional, 
   *                  to be enabled by user)
   *                - Branches to main in the C library (which eventually
   *                  calls main()).
@@ -233,11 +233,6 @@ g_pfnVectors:
   .word     CRYP_IRQHandler                   /* CRYP crypto                  */                   
   .word     HASH_RNG_IRQHandler               /* Hash and Rng                 */
   .word     FPU_IRQHandler                    /* FPU                          */
-  .word     UART7_IRQHandler                  /* UART7                        */
-  .word     UART8_IRQHandler                  /* UART8                        */
-  .word     SPI4_IRQHandler                   /* SPI4                         */
-  .word     SPI5_IRQHandler                   /* SPI5                         */
-  .word     SPI6_IRQHandler                   /* SPI6                         */
                         
 /*******************************************************************************
 *
@@ -518,20 +513,5 @@ g_pfnVectors:
 
    .weak      FPU_IRQHandler                  
    .thumb_set FPU_IRQHandler,Default_Handler  
-
-   .weak      UART7_IRQHandler                  
-   .thumb_set UART7_IRQHandler,Default_Handler                   
    
-   .weak      UART8_IRQHandler                  
-   .thumb_set UART8_IRQHandler,Default_Handler 
-   
-   .weak      SPI4_IRQHandler                   
-   .thumb_set SPI4_IRQHandler,Default_Handler 
-   
-   .weak      SPI5_IRQHandler                   
-   .thumb_set SPI5_IRQHandler,Default_Handler 
-   
-   .weak      SPI6_IRQHandler
-   .thumb_set SPI6_IRQHandler,Default_Handler                    
-      
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -6,7 +6,6 @@
 #endif 
 
 /* Includes ------------------------------------------------------------------*/
-#include "usb_conf.h"
 
 void NMI_Handler(void);
 void HardFault_Handler(void);

@@ -2,16 +2,17 @@
   ******************************************************************************
   * @file      startup_stm32f427x.s
   * @author    MCD Application Team
-  * @version   V1.1.0
-  * @date      11-January-2013
-  * @brief     STM32F427x/437x Devices vector table for RIDE7 toolchain.          
+  * @version   V1.3.0
+  * @date      08-November-2013
+  * @brief     STM32F427xx/437xx Devices vector table for RIDE7 toolchain.
+  *            Same as startup_stm32f427_437xx.s and maintained for legacy purpose              
   *            This module performs:
   *                - Set the initial SP
   *                - Set the initial PC == Reset_Handler,
   *                - Set the vector table entries with the exceptions ISR address
   *                - Configure the clock system and the external SRAM mounted on 
-  *                  STM324x7I-EVAL board to be used as data memory (optional, 
-  *                  to be enabled by user)
+  *                  STM324x7I-EVAL board to be used as data memory 
+  *                  (optional, to be enabled by user)
   *                - Branches to main in the C library (which eventually
   *                  calls main()).
   *            After Reset the Cortex-M4 processor is in Thread mode,
@@ -236,7 +237,11 @@ g_pfnVectors:
   .word     SPI4_IRQHandler                   /* SPI4                         */
   .word     SPI5_IRQHandler                   /* SPI5                         */
   .word     SPI6_IRQHandler                   /* SPI6                         */
-                            
+  .word     SAI1_IRQHandler                   /* SAI1                         */
+  .word     LTDC_IRQHandler                   /* LTDC                         */
+  .word     LTDC_ER_IRQHandler                /* LTDC error                   */
+  .word     DMA2D_IRQHandler                  /* DMA2D                        */
+                              
 /*******************************************************************************
 *
 * Provide weak aliases for each Exception handler to the Default_Handler. 
@@ -530,6 +535,18 @@ g_pfnVectors:
    .thumb_set SPI5_IRQHandler,Default_Handler 
    
    .weak      SPI6_IRQHandler
-   .thumb_set SPI6_IRQHandler,Default_Handler                    
+   .thumb_set SPI6_IRQHandler,Default_Handler
+   
+   .weak      SAI1_IRQHandler
+   .thumb_set SAI1_IRQHandler,Default_Handler 
+   
+   .weak      LTDC_IRQHandler
+   .thumb_set LTDC_IRQHandler,Default_Handler 
+   
+   .weak      LTDC_ER_IRQHandler
+   .thumb_set LTDC_ER_IRQHandler,Default_Handler 
+   
+   .weak      DMA2D_IRQHandler
+   .thumb_set DMA2D_IRQHandler,Default_Handler                    
    
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -1,9 +1,10 @@
 ;/******************** (C) COPYRIGHT 2013 STMicroelectronics ********************
 ;* File Name          : startup_stm32f40xx.s
 ;* Author             : MCD Application Team
-;* Version            : V1.1.0
-;* Date               : 11-January-2013
-;* Description        : STM32F40xx/41xx devices vector table for EWARM toolchain.
+;* Version            : V1.3.0
+;* Date               : 08-November-2013
+;* Description        : STM32F40xxx/41xxx devices vector table for EWARM toolchain.
+;*                      Same as startup_stm32f40_41xxx.s and maintained for legacy purpose
 ;*                      This module performs:
 ;*                      - Set the initial SP
 ;*                      - Set the initial PC == _iar_program_start,
