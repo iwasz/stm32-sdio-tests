@@ -253,19 +253,71 @@ static TestStatus eBuffercmp (uint8_t* pBuffer, uint32_t BufferLength)
  */
 void initUsart (void)
 {
-        RCC_APB2PeriphClockCmd (RCC_APB2Periph_USART1, ENABLE);
-        RCC_AHB1PeriphClockCmd (RCC_AHB1Periph_GPIOB, ENABLE);
+#define USE_USART 1
+#define USE_PIN_SET 1
 
+#if USE_USART == 1
+        #define USART USART1
+        #define RCC_USART RCC_APB2Periph_USART1
+        #define RCC_APBxPeriphClockCmd RCC_APB2PeriphClockCmd
+        #define GPIO_AF_USART GPIO_AF_USART1
+
+         #if USE_PIN_SET == 1
+                #define RCC_GPIO RCC_AHB1Periph_GPIOB
+                #define PORT GPIOB
+                #define TX_PIN_SOURCE GPIO_PinSource6
+                #define RX_PIN_SOURCE GPIO_PinSource7
+                #define TX_PIN GPIO_Pin_6
+                #define RX_PIN GPIO_Pin_7
+         #endif
+
+        #if USE_PIN_SET == 2
+               #define RCC_GPIO RCC_AHB1Periph_GPIOA
+               #define PORT GPIOA
+               #define TX_PIN_SOURCE GPIO_PinSource9
+               #define RX_PIN_SOURCE GPIO_PinSource10
+               #define TX_PIN GPIO_Pin_9
+               #define RX_PIN GPIO_Pin_10
+        #endif
+#endif
+
+#if USE_USART == 2
+        #define USART USART2
+        #define RCC_USART RCC_APB1Periph_USART2
+        #define RCC_APBxPeriphClockCmd RCC_APB1PeriphClockCmd
+        #define GPIO_AF_USART GPIO_AF_USART2
+
+         #if USE_PIN_SET == 1
+                #define RCC_GPIO RCC_AHB1Periph_GPIOA
+                #define PORT GPIOA
+                #define TX_PIN_SOURCE GPIO_PinSource2
+                #define RX_PIN_SOURCE GPIO_PinSource3
+                #define TX_PIN GPIO_Pin_2
+                #define RX_PIN GPIO_Pin_3
+         #endif
+
+        #if USE_PIN_SET == 2
+               #define RCC_GPIO RCC_AHB1Periph_GPIOA
+               #define PORT GPIOA
+               #define TX_PIN_SOURCE GPIO_PinSource9
+               #define RX_PIN_SOURCE GPIO_PinSource10
+               #define TX_PIN GPIO_Pin_9
+               #define RX_PIN GPIO_Pin_10
+        #endif
+#endif
+
+        RCC_APBxPeriphClockCmd (RCC_USART, ENABLE);
         GPIO_InitTypeDef gpioInitStruct;
 
-        gpioInitStruct.GPIO_Pin = GPIO_Pin_6 | GPIO_Pin_7;
+        RCC_AHB1PeriphClockCmd (RCC_GPIO, ENABLE);
+        gpioInitStruct.GPIO_Pin = TX_PIN | RX_PIN;
         gpioInitStruct.GPIO_Mode = GPIO_Mode_AF;
-        gpioInitStruct.GPIO_Speed = GPIO_Speed_50MHz;
+        gpioInitStruct.GPIO_Speed = GPIO_High_Speed;
         gpioInitStruct.GPIO_OType = GPIO_OType_PP;
-        gpioInitStruct.GPIO_PuPd = GPIO_PuPd_NOPULL;
-        GPIO_Init (GPIOB, &gpioInitStruct);
-        GPIO_PinAFConfig (GPIOB, GPIO_PinSource6, GPIO_AF_USART1); // TX
-        GPIO_PinAFConfig (GPIOB, GPIO_PinSource7, GPIO_AF_USART1); // RX
+        gpioInitStruct.GPIO_PuPd = GPIO_PuPd_UP;
+        GPIO_Init (PORT, &gpioInitStruct);
+        GPIO_PinAFConfig (PORT, TX_PIN_SOURCE, GPIO_AF_USART); // TX
+        GPIO_PinAFConfig (PORT, RX_PIN_SOURCE, GPIO_AF_USART); // RX
 
         USART_InitTypeDef usartInitStruct;
         usartInitStruct.USART_BaudRate = 9600;
@@ -274,8 +326,8 @@ void initUsart (void)
         usartInitStruct.USART_Parity = USART_Parity_No;
         usartInitStruct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
         usartInitStruct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-        USART_Init (USART1, &usartInitStruct);
-        USART_Cmd (USART1, ENABLE);
+        USART_Init (USART, &usartInitStruct);
+        USART_Cmd (USART, ENABLE);
 }
 
 int main (void)
