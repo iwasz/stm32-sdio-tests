@@ -27,7 +27,6 @@
  *
  ******************************************************************************
  */
-#if 0
 
 #include <stm32f4xx.h>
 #include "sdio_low_level.h"
@@ -200,5 +199,3 @@ void SD_LowLevel_DMA_RxConfig (uint32_t *BufferDST, uint32_t BufferSize)
         /* DMA2 Stream3 or Stream6 enable */
         DMA_Cmd (SD_SDIO_DMA_STREAM, ENABLE);
 }
-
-#endif

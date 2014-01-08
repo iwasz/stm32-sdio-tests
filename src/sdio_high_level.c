@@ -221,12 +221,12 @@
  *
  ******************************************************************************
  */
-#if 0
 
 /* Includes ------------------------------------------------------------------*/
 #include "sdio_high_level.h"
 //#include "stm324x9i_eval_ioe16.h"
 #include <stm32f4xx.h>
+#include "logf.h"
 
 /** @addtogroup Utilities
  * @{
@@ -403,22 +403,26 @@ SD_Error SD_Init (void)
 
         /* SDIO Peripheral Low Level Init */
         SD_LowLevel_Init ();
-
         SDIO_DeInit ();
-
-        errorstatus = SD_PowerON ();
+        errorstatus = sdPowerOn ();//SD_PowerON ();
 
         if (errorstatus != SD_OK) {
+                logf ("SD_PowerON failed\r\n");
                 /*!< CMD Response TimeOut (wait for CMDSENT flag) */
                 return (errorstatus);
         }
+
+        logf ("SD_PowerON OK\r\n");
 
         errorstatus = SD_InitializeCards ();
 
         if (errorstatus != SD_OK) {
+                logf ("SD_InitializeCards failed\r\n");
                 /*!< CMD Response TimeOut (wait for CMDSENT flag) */
                 return (errorstatus);
         }
+
+        logf ("SD_InitializeCards OK\r\n");
 
         /*!< Configure the SDIO peripheral */
         /*!< SDIO_CK = SDIOCLK / (SDIO_TRANSFER_CLK_DIV + 2) */
@@ -436,11 +440,23 @@ SD_Error SD_Init (void)
 
         if (errorstatus == SD_OK) {
                 /*----------------- Select Card --------------------------------*/
+                logf ("SD_GetCardInfo OK\r\n");
                 errorstatus = SD_SelectDeselect ((uint32_t) (SDCardInfo.RCA << 16));
+        }
+        else {
+                logf ("SD_SelectDeselect failed\r\n");
         }
 
         if (errorstatus == SD_OK) {
+                logf ("SD_SelectDeselect OK\r\n");
                 errorstatus = SD_EnableWideBusOperation (SDIO_BusWide_4b);
+        }
+        else {
+                logf ("SD_EnableWideBusOperation failed\r\n");
+        }
+
+        if (errorstatus == SD_OK) {
+                logf ("SD_EnableWideBusOperation OK\r\n");
         }
 
         return (errorstatus);
@@ -1328,9 +1344,13 @@ SD_Error SD_WaitReadOperation (void)
 
         timeout = SD_DATATIMEOUT;
 
+        logf ("1\r\n");
+
         while ((DMAEndOfTransfer == 0x00) && (TransferEnd == 0) && (TransferError == SD_OK) && (timeout > 0)) {
                 timeout--;
         }
+
+        logf ("2\r\n");
 
         DMAEndOfTransfer = 0x00;
 
@@ -1339,6 +1359,8 @@ SD_Error SD_WaitReadOperation (void)
         while (((SDIO ->STA & SDIO_FLAG_RXACT)) && (timeout > 0)) {
                 timeout--;
         }
+
+        logf ("3\r\n");
 
         if (StopCondition == 1) {
                 errorstatus = SD_StopTransfer ();
@@ -1351,6 +1373,8 @@ SD_Error SD_WaitReadOperation (void)
 
         /*!< Clear all the static flags */
         SDIO_ClearFlag (SDIO_STATIC_FLAGS );
+
+        logf ("4\r\n");
 
         if (TransferError != SD_OK) {
                 return (TransferError);
@@ -2722,17 +2746,3 @@ SD_Error SD_HighSpeed (void)
         return (errorstatus);
 }
 
-/**
- * @}
- */
-
-/**
- * @}
- */
-
-/**
- * @}
- */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
-#endif

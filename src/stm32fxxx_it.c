@@ -1,5 +1,5 @@
 #include "stm32fxxx_it.h"
-#include <stdio.h>
+#include "logf.h"
 //#include "sdio_high_level.h"
 
 /******************************************************************************/
@@ -22,7 +22,7 @@ void NMI_Handler (void)
  */
 void HardFault_Handler (void)
 {
-        printf ("HardFault_Handler\r\n");
+        logf ("HardFault_Handler\r\n");
 
         /* Go to infinite loop when Hard Fault exception occurs */
         while (1) {

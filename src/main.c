@@ -1,7 +1,8 @@
 #include <stm32f4xx.h>
 #include <stdio.h>
-#if 0
 #include "sdio_high_level.h"
+#include "simplesdio.h"
+#include "logf.h"
 
 /* Private typedef -----------------------------------------------------------*/
 typedef enum {
@@ -78,16 +79,39 @@ static void SD_EraseTest (void)
                 /* Erase NumberOfBlocks Blocks of WRITE_BL_LEN(512 Bytes) */
                 Status = SD_Erase (0x00, (BLOCK_SIZE * NUMBER_OF_BLOCKS));
         }
+        else {
+                logf ("SD_EraseTest failed 1\r\n");
+        }
 
         if (Status == SD_OK) {
+                logf ("SD_Erase OK, performing SD_ReadMultiBlocks\r\n");
+
                 Status = SD_ReadMultiBlocks (aBuffer_MultiBlock_Rx, 0x00, BLOCK_SIZE, NUMBER_OF_BLOCKS);
+
+                if (Status == SD_OK) {
+                        logf ("SD_ReadMultiBlocks OK\r\n");
+                        fflush (0);
+                }
+                else {
+                        logf ("SD_ReadMultiBlocks failed\r\n");
+                        fflush (0);
+                }
 
                 /* Check if the Transfer is finished */
                 Status = SD_WaitReadOperation ();
 
+                if (Status == SD_OK) {
+                        logf ("SD_WaitReadOperation OK\r\n");
+                }
+                else {
+                        logf ("SD_WaitReadOperation failed\r\n");
+                }
+
                 /* Wait until end of DMA transfer */
                 while (SD_GetStatus () != SD_TRANSFER_OK)
                         ;
+
+                logf ("SD_TRANSFER_OK\r\n");
         }
 
         /* Check the correctness of erased blocks */
@@ -96,10 +120,10 @@ static void SD_EraseTest (void)
         }
 
         if (EraseStatus == PASSED) {
-                printf ("SD erase test passed\r\n");
+                logf ("SD erase test passed\r\n");
         }
         else {
-                printf ("SD erase test failed\r\n");
+                logf ("SD erase test failed\r\n");
         }
 }
 
@@ -138,10 +162,10 @@ static void SD_SingleBlockTest (void)
         }
 
         if (TransferStatus1 == PASSED) {
-                printf ("Single block test passed\r\n");
+                logf ("Single block test passed\r\n");
         }
         else {
-                printf ("Single block test failed\r\n");
+                logf ("Single block test failed\r\n");
         }
 }
 
@@ -181,10 +205,10 @@ static void SD_MultiBlockTest (void)
         }
 
         if (TransferStatus2 == PASSED) {
-                printf ("Multiple block test passed\r\n");
+                logf ("Multiple block test passed\r\n");
         }
         else {
-                printf ("Multiple block test failed\r\n");
+                logf ("Multiple block test failed\r\n");
         }
 }
 
@@ -246,7 +270,6 @@ static TestStatus eBuffercmp (uint8_t* pBuffer, uint32_t BufferLength)
 
         return PASSED;
 }
-#endif
 
 /**
  * For printf.
@@ -333,48 +356,52 @@ void initUsart (void)
 int main (void)
 {
         initUsart ();
-        printf ("Init\r\n");
+        logf ("Init\r\n");
 
-//        /*!< At this stage the microcontroller clock setting is already configured,
-//         this is done through SystemInit() function which is called from startup
-//         files (startup_stm32f40_41xxx.s/startup_stm32f427_437xx.s)
-//         before to branch to application main. To reconfigure the default setting
-//         of SystemInit() function, refer to system_stm32f4xx.c file
-//         */
-//
-//        /* NVIC Configuration */
-//        NVIC_Configuration ();
-//
-//        /*------------------------------ SD Init ---------------------------------- */
-//        if ((Status = SD_Init ()) != SD_OK) {
-//                printf ("SD_Init went OK\r\n");
-//        }
-//
-//        while ((Status == SD_OK) && (uwSDCardOperation != SD_OPERATION_END) && (SD_Detect () == SD_PRESENT)) {
-//                switch (uwSDCardOperation) {
-//                /*-------------------------- SD Erase Test ---------------------------- */
-//                case (SD_OPERATION_ERASE):
-//                {
-//                        SD_EraseTest ();
-//                        uwSDCardOperation = SD_OPERATION_BLOCK;
-//                        break;
-//                }
-//                        /*-------------------------- SD Single Block Test --------------------- */
-//                case (SD_OPERATION_BLOCK):
-//                {
-//                        SD_SingleBlockTest ();
-//                        uwSDCardOperation = SD_OPERATION_MULTI_BLOCK;
-//                        break;
-//                }
-//                        /*-------------------------- SD Multi Blocks Test --------------------- */
-//                case (SD_OPERATION_MULTI_BLOCK):
-//                {
-//                        SD_MultiBlockTest ();
-//                        uwSDCardOperation = SD_OPERATION_END;
-//                        break;
-//                }
-//                }
-//        }
+        /*!< At this stage the microcontroller clock setting is already configured,
+         this is done through SystemInit() function which is called from startup
+         files (startup_stm32f40_41xxx.s/startup_stm32f427_437xx.s)
+         before to branch to application main. To reconfigure the default setting
+         of SystemInit() function, refer to system_stm32f4xx.c file
+         */
+
+        /* NVIC Configuration */
+        NVIC_Configuration ();
+        logf ("NVIC_Configuration\r\n");
+
+        /*------------------------------ SD Init ---------------------------------- */
+        if ((Status = SD_Init ()) != SD_OK) {
+                logf ("SD_Init failed\r\n");
+        }
+        else {
+                logf ("SD_Init OK\r\n");
+        }
+
+        while ((Status == SD_OK) && (uwSDCardOperation != SD_OPERATION_END) && (SD_Detect () == SD_PRESENT)) {
+                switch (uwSDCardOperation) {
+                /*-------------------------- SD Erase Test ---------------------------- */
+                case (SD_OPERATION_ERASE):
+                {
+                        SD_EraseTest ();
+                        uwSDCardOperation = SD_OPERATION_BLOCK;
+                        break;
+                }
+                        /*-------------------------- SD Single Block Test --------------------- */
+                case (SD_OPERATION_BLOCK):
+                {
+                        SD_SingleBlockTest ();
+                        uwSDCardOperation = SD_OPERATION_MULTI_BLOCK;
+                        break;
+                }
+                        /*-------------------------- SD Multi Blocks Test --------------------- */
+                case (SD_OPERATION_MULTI_BLOCK):
+                {
+                        SD_MultiBlockTest ();
+                        uwSDCardOperation = SD_OPERATION_END;
+                        break;
+                }
+                }
+        }
 
         /* Infinite loop */
         while (1) {
