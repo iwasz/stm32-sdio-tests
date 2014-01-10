@@ -259,7 +259,6 @@
 /** 
  * @brief  SDIO Static flags, TimeOut, FIFO Address
  */
-#define NULL 0
 #define SDIO_STATIC_FLAGS               ((uint32_t)0x000005FF)
 #define SDIO_CMD0TIMEOUT                ((uint32_t)0x00010000)
 
@@ -307,6 +306,7 @@
 #define SD_CARD_LOCKED                  ((uint32_t)0x02000000)
 
 #define SD_DATATIMEOUT                  ((uint32_t)0xFFFFFFFF)
+//#define SD_DATATIMEOUT                  ((uint32_t)1000000)
 #define SD_0TO7BITS                     ((uint32_t)0x000000FF)
 #define SD_8TO15BITS                    ((uint32_t)0x0000FF00)
 #define SD_16TO23BITS                   ((uint32_t)0x00FF0000)
@@ -404,7 +404,7 @@ SD_Error SD_Init (void)
         /* SDIO Peripheral Low Level Init */
         SD_LowLevel_Init ();
         SDIO_DeInit ();
-        errorstatus = sdPowerOn ();//SD_PowerON ();
+        errorstatus = SD_PowerON ();
 
         if (errorstatus != SD_OK) {
                 logf ("SD_PowerON failed\r\n");
@@ -1281,9 +1281,11 @@ SD_Error SD_ReadMultiBlocks (uint8_t *readbuff, uint64_t ReadAddr, uint16_t Bloc
 
         SDIO ->DCTRL = 0x0;
 
+#if defined (SD_DMA_MODE)
         SDIO_ITConfig (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_RXOVERR | SDIO_IT_STBITERR, ENABLE);
         SD_LowLevel_DMA_RxConfig ((uint32_t *) readbuff, (NumberOfBlocks * BlockSize));
         SDIO_DMACmd (ENABLE);
+#endif
 
         if (CardType == SDIO_HIGH_CAPACITY_SD_CARD ) {
                 BlockSize = 512;
@@ -1340,7 +1342,7 @@ SD_Error SD_ReadMultiBlocks (uint8_t *readbuff, uint64_t ReadAddr, uint16_t Bloc
 SD_Error SD_WaitReadOperation (void)
 {
         SD_Error errorstatus = SD_OK;
-        uint32_t timeout;
+        volatile uint32_t timeout;
 
         timeout = SD_DATATIMEOUT;
 
@@ -1350,7 +1352,8 @@ SD_Error SD_WaitReadOperation (void)
                 timeout--;
         }
 
-        logf ("2\r\n");
+        logf ("1.5\r\n");
+        logf ("2 DMAEndOfTransfer = %d, TransferEnd = %d, TransferError = %d, timeout = %d\r\n", DMAEndOfTransfer, TransferEnd, TransferError, timeout);
 
         DMAEndOfTransfer = 0x00;
 
@@ -1539,9 +1542,11 @@ SD_Error SD_WriteMultiBlocks (uint8_t *writebuff, uint64_t WriteAddr, uint16_t B
         StopCondition = 1;
         SDIO ->DCTRL = 0x0;
 
+#if defined (SD_DMA_MODE)
         SDIO_ITConfig (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_TXUNDERR | SDIO_IT_STBITERR, ENABLE);
         SD_LowLevel_DMA_TxConfig ((uint32_t *) writebuff, (NumberOfBlocks * BlockSize));
         SDIO_DMACmd (ENABLE);
+#endif
 
         if (CardType == SDIO_HIGH_CAPACITY_SD_CARD ) {
                 BlockSize = 512;
@@ -1939,26 +1944,32 @@ SD_Error SD_ProcessIRQSrc (void)
                 TransferError = SD_OK;
                 SDIO_ClearITPendingBit (SDIO_IT_DATAEND);
                 TransferEnd = 1;
+                logf ("SDIO IRQ : TransferEnd = 1, OK\r\n");
         }
         else if (SDIO_GetITStatus (SDIO_IT_DCRCFAIL) != RESET) {
                 SDIO_ClearITPendingBit (SDIO_IT_DCRCFAIL);
                 TransferError = SD_DATA_CRC_FAIL;
+                logf ("SDIO IRQ : SD_DATA_CRC_FAIL\r\n");
         }
         else if (SDIO_GetITStatus (SDIO_IT_DTIMEOUT) != RESET) {
                 SDIO_ClearITPendingBit (SDIO_IT_DTIMEOUT);
                 TransferError = SD_DATA_TIMEOUT;
+                logf ("SDIO IRQ : SD_DATA_TIMEOUT\r\n");
         }
         else if (SDIO_GetITStatus (SDIO_IT_RXOVERR) != RESET) {
                 SDIO_ClearITPendingBit (SDIO_IT_RXOVERR);
                 TransferError = SD_RX_OVERRUN;
+                logf ("SDIO IRQ : SD_RX_OVERRUN\r\n");
         }
         else if (SDIO_GetITStatus (SDIO_IT_TXUNDERR) != RESET) {
                 SDIO_ClearITPendingBit (SDIO_IT_TXUNDERR);
                 TransferError = SD_TX_UNDERRUN;
+                logf ("SDIO IRQ : SD_TX_UNDERRUN\r\n");
         }
         else if (SDIO_GetITStatus (SDIO_IT_STBITERR) != RESET) {
                 SDIO_ClearITPendingBit (SDIO_IT_STBITERR);
                 TransferError = SD_START_BIT_ERR;
+                logf ("SDIO IRQ : SD_START_BIT_ERR\r\n");
         }
 
         SDIO_ITConfig (SDIO_IT_DCRCFAIL | SDIO_IT_DTIMEOUT | SDIO_IT_DATAEND | SDIO_IT_TXFIFOHE | SDIO_IT_RXFIFOHF | SDIO_IT_TXUNDERR | SDIO_IT_RXOVERR | SDIO_IT_STBITERR, DISABLE);
@@ -1976,6 +1987,7 @@ void SD_ProcessDMAIRQ (void)
                 DMAEndOfTransfer = 0x01;
                 DMA_ClearFlag (SD_SDIO_DMA_STREAM, SD_SDIO_DMA_FLAG_TCIF | SD_SDIO_DMA_FLAG_FEIF);
         }
+        logf ("DMA...\r\n");
 }
 
 /**

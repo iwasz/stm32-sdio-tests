@@ -31,7 +31,7 @@ __IO TestStatus TransferStatus1 = FAILED;
 __IO TestStatus TransferStatus2 = FAILED;
 
 SD_Error Status = SD_OK;
-__IO uint32_t uwSDCardOperation = SD_OPERATION_ERASE;
+__IO uint32_t uwSDCardOperation = SD_OPERATION_BLOCK;
 
 /* Private function prototypes -----------------------------------------------*/
 static void NVIC_Configuration (void);
@@ -90,11 +90,9 @@ static void SD_EraseTest (void)
 
                 if (Status == SD_OK) {
                         logf ("SD_ReadMultiBlocks OK\r\n");
-                        fflush (0);
                 }
                 else {
                         logf ("SD_ReadMultiBlocks failed\r\n");
-                        fflush (0);
                 }
 
                 /* Check if the Transfer is finished */
@@ -379,27 +377,27 @@ int main (void)
 
         while ((Status == SD_OK) && (uwSDCardOperation != SD_OPERATION_END) && (SD_Detect () == SD_PRESENT)) {
                 switch (uwSDCardOperation) {
-                /*-------------------------- SD Erase Test ---------------------------- */
-                case (SD_OPERATION_ERASE):
-                {
-                        SD_EraseTest ();
-                        uwSDCardOperation = SD_OPERATION_BLOCK;
-                        break;
-                }
                         /*-------------------------- SD Single Block Test --------------------- */
-                case (SD_OPERATION_BLOCK):
-                {
-                        SD_SingleBlockTest ();
-                        uwSDCardOperation = SD_OPERATION_MULTI_BLOCK;
-                        break;
-                }
+                        case (SD_OPERATION_BLOCK):
+                        {
+                                SD_SingleBlockTest ();
+                                uwSDCardOperation = SD_OPERATION_ERASE;
+                                break;
+                        }
+                        /*-------------------------- SD Erase Test ---------------------------- */
+                        case (SD_OPERATION_ERASE):
+                        {
+                                SD_EraseTest ();
+                                uwSDCardOperation = SD_OPERATION_MULTI_BLOCK;
+                                break;
+                        }
                         /*-------------------------- SD Multi Blocks Test --------------------- */
-                case (SD_OPERATION_MULTI_BLOCK):
-                {
-                        SD_MultiBlockTest ();
-                        uwSDCardOperation = SD_OPERATION_END;
-                        break;
-                }
+                        case (SD_OPERATION_MULTI_BLOCK):
+                        {
+                                SD_MultiBlockTest ();
+                                uwSDCardOperation = SD_OPERATION_END;
+                                break;
+                        }
                 }
         }
 
